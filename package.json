@@ -1,9 +1,9 @@
 {
-  "name": "komodojs",
+  "name": "safecoinjs",
   "version": "1.0.0",
-  "description": "Dead easy to use Komodo JavaScript based library",
+  "description": "Dead easy to use Safecoin JavaScript based library",
   "main": "./lib/index.js",
-  "repository": "https://github.com/TheTrunk/komodojs.git",
+  "repository": "https://github.com/OleksandrBlack/safecoinjs.git",
   "author": "TheTrunk",
   "license": "MIT",
   "dependencies": {
