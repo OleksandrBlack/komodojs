@@ -1,19 +1,21 @@
-var prf = require('./prf');
-var address = require('./address');
-var bs58check = require('bs58check');
-var sodium = require('libsodium-wrappers-sumo');
-var zconfig = require('./config');
+// @flow
+/* eslint-disable camelcase */
+var prf = require('./prf')
+var address = require('./address')
+var bs58check = require('bs58check')
+var sodium = require('libsodium-wrappers-sumo')
+var zconfig = require('./config')
 
 /*
  * Creates a Z secret key (a_sk)
  * @param {String} phrase (Password phrase)
  * @return {Sting} Z secret key (a_sk)
  */
-function mkZSecretKey(phrase) {
-  const a_sk = address.mkPrivKey(phrase);
-  var baddr = Buffer.from(a_sk, 'hex');
-  baddr[0] &= 0x0f;
-  return baddr.toString('hex');
+function mkZSecretKey (phrase: string): string {
+  const a_sk: string = address.mkPrivKey(phrase)
+  var baddr: Buffer = Buffer.from(a_sk, 'hex')
+  baddr[0] &= 0x0f
+  return baddr.toString('hex')
 }
 
 /*
@@ -22,11 +24,11 @@ function mkZSecretKey(phrase) {
  * @param {String} zcSpendingKeyHash (secret key hash,optional)
  * @return {Sting} sk (spending key)
  */
-function zSecretKeyToSpendingKey(a_sk, zcSpendingKeyHash) {
-  zcSpendingKeyHash = zcSpendingKeyHash || zconfig.mainnet.zcSpendingKeyHash;
+function zSecretKeyToSpendingKey (a_sk: string, zcSpendingKeyHash: ?string): string {
+  zcSpendingKeyHash = zcSpendingKeyHash || zconfig.mainnet.zcSpendingKeyHash
 
-  const buf = Buffer.from(zcSpendingKeyHash + a_sk, 'hex');
-  return bs58check.encode(buf).toString('hex');
+  const buf = Buffer.from(zcSpendingKeyHash + a_sk, 'hex')
+  return bs58check.encode(buf).toString('hex')
 }
 
 /*
@@ -34,8 +36,8 @@ function zSecretKeyToSpendingKey(a_sk, zcSpendingKeyHash) {
  * @param {String} a_sk (secret key)
  * @return {Sting} a_pk key (paying key)
  */
-function zSecretKeyToPayingKey(a_sk) {
-  return prf.PRF_addr_a_pk(Buffer.from(a_sk, 'hex')).toString('hex');
+function zSecretKeyToPayingKey (a_sk: string): string {
+  return prf.PRF_addr_a_pk(Buffer.from(a_sk, 'hex')).toString('hex')
 }
 
 /*
@@ -43,15 +45,15 @@ function zSecretKeyToPayingKey(a_sk) {
  * @param {String} a_sk (secret key)
  * @return {Sting} pk_enc key (transmisison key)
  */
-function zSecretKeyToTransmissionKey(a_sk) {
-  var sk_enc = prf.PRF_addr_sk_enc(Buffer.from(a_sk, 'hex'));
+function zSecretKeyToTransmissionKey (a_sk: string): string {
+  var sk_enc = prf.PRF_addr_sk_enc(Buffer.from(a_sk, 'hex'))
 
   // Curve 25519 clamping
-  sk_enc[0] &= 248;
-  sk_enc[32] &= 127;
-  sk_enc[31] |= 64;
+  sk_enc[0] &= 248
+  sk_enc[32] &= 127
+  sk_enc[31] |= 64
 
-  return Buffer.from(sodium.crypto_scalarmult_base(sk_enc)).toString('hex');
+  return Buffer.from(sodium.crypto_scalarmult_base(sk_enc)).toString('hex')
 }
 
 /*
@@ -61,11 +63,11 @@ function zSecretKeyToTransmissionKey(a_sk) {
  * @param {String} zcPaymentAddressHash (hash for payment address, optional)
  * @return {String} Zaddress
  */
-function mkZAddress(a_pk, pk_enc, zcPaymentAddressHash) {
-  zcPaymentAddressHash = zcPaymentAddressHash || zconfig.mainnet.zcPaymentAddressHash;
+function mkZAddress (a_pk: string, pk_enc: string, zcPaymentAddressHash: ?string): string {
+  zcPaymentAddressHash = zcPaymentAddressHash || zconfig.mainnet.zcPaymentAddressHash
 
-  const buf = Buffer.from(zcPaymentAddressHash + a_pk + pk_enc, 'hex');
-  return bs58check.encode(buf).toString('hex');
+  const buf = Buffer.from(zcPaymentAddressHash + a_pk + pk_enc, 'hex')
+  return bs58check.encode(buf).toString('hex')
 }
 
 module.exports = {
@@ -74,4 +76,4 @@ module.exports = {
   zSecretKeyToPayingKey: zSecretKeyToPayingKey,
   zSecretKeyToSpendingKey: zSecretKeyToSpendingKey,
   mkZAddress: mkZAddress
-};
+}

@@ -1,20 +1,18 @@
 // @flow
-
-var bs58check = require('bs58check');
-var secp256k1 = require('secp256k1');
+var bs58check = require('bs58check')
+var secp256k1 = require('secp256k1')
 var zbufferutils = require('./bufferutils')
-var bigi = require('bigi');
-var zcrypto = require('./crypto');
+var zcrypto = require('./crypto')
 var zopcodes = require('./opcodes')
-var zconfig = require('./config');
+var zconfig = require('./config')
 
 /*
  * Makes a private key
- * @param {String} phrase (Password phrase)
- * @return {String} Private key
+ * @param {String phrase (Password phrase)
+ * @return {Sting} Private key
  */
-function mkPrivKey(phrase) {
-  return zcrypto.sha256(Buffer.from(phrase, 'utf-8'));
+function mkPrivKey (phrase: string): string {
+  return zcrypto.sha256(Buffer.from(phrase, 'utf-8'))
 }
 
 /*
@@ -22,13 +20,12 @@ function mkPrivKey(phrase) {
  * @param {String} privKey (private key)
  * @param {boolean} toCompressed (Convert to WIF compressed key or nah)
  * @param {String} wif (wif hashing bytes (default: 0x80))
- * @return {String} WIF format (uncompressed)
+ * @return {Sting} WIF format (uncompressed)
  */
 function privKeyToWIF (privKey: string, toCompressed: boolean = false, wif: string = zconfig.mainnet.wif): string {
+  if (toCompressed) privKey = privKey + '01'
 
-  if (toCompressed) privKey = privKey + '01';
-
-  return bs58check.encode(Buffer.from(wif + privKey, 'hex'));
+  return bs58check.encode(Buffer.from(wif + privKey, 'hex'))
 }
 
 /*
@@ -38,9 +35,9 @@ function privKeyToWIF (privKey: string, toCompressed: boolean = false, wif: stri
  * @return {Sting} Public Key (default: uncompressed)
  */
 function privKeyToPubKey (privKey: string, toCompressed: boolean = false): string {
-  const pkBuffer = Buffer.from(privKey, 'hex');
-  var publicKey = secp256k1.publicKeyCreate(pkBuffer, toCompressed);
-  return publicKey.toString('hex');
+  const pkBuffer = Buffer.from(privKey, 'hex')
+  var publicKey = secp256k1.publicKeyCreate(pkBuffer, toCompressed)
+  return publicKey.toString('hex')
 }
 
 /*
@@ -48,27 +45,29 @@ function privKeyToPubKey (privKey: string, toCompressed: boolean = false): strin
  * @param {String} privKey (private key)
  * @return {Sting} Public Key (uncompressed)
  */
-function WIFToPrivKey(wifPk) {
-  var og = bs58check.decode(wifPk, 'hex').toString('hex');
-  og = og.substr(2, og.length); // remove WIF format ('80')
+function WIFToPrivKey (wifPk: string): string {
+  var og = bs58check.decode(wifPk, 'hex').toString('hex')
+  og = og.substr(2, og.length) // remove WIF format ('80')
 
   // remove the '01' at the end to 'compress it' during WIF conversion
   if (og.length > 64) {
-    og = og.substr(0, 64);
+    og = og.substr(0, 64)
   }
 
-  return og;
+  return og
 }
 
 /*
- * Converts public key to komodo address
+ * Converts public key to safecoin address
  * @param {String} pubKey (public key)
  * @param {String} pubKeyHash (public key hash (optional, else use defaul))
- * @return {Sting} komodo address
+ * @return {String} safecoin address
  */
 function pubKeyToAddr (pubKey: string, pubKeyHash: string = zconfig.mainnet.pubKeyHash): string {
-  const hash160 = zcrypto.hash160(Buffer.from(pubKey, 'hex'));
-  return bs58check.encode(Buffer.from(pubKeyHash + hash160, 'hex')).toString('hex');
+  const hash160 = zcrypto.hash160(Buffer.from(pubKey, 'hex'))
+  return bs58check
+    .encode(Buffer.from(pubKeyHash + hash160, 'hex'))
+    .toString('hex')
 }
 
 /*
@@ -109,4 +108,4 @@ module.exports = {
   WIFToPrivKey: WIFToPrivKey,
   mkMultiSigRedeemScript: mkMultiSigRedeemScript,
   multiSigRSToAddress: multiSigRSToAddress
-};
+}
