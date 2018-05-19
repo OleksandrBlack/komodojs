@@ -1,54 +1,54 @@
-var SHA256Compress = require('./sha256compress');
+// @flow
+var SHA256Compress = require('./sha256compress')
 
-function prf(a, b, c, d, x, y) {
+function prf (a: number, b: number, c: number, d: number, x: Buffer, y: Buffer) {
+  var blob = Buffer.alloc(64)
 
-  var blob = Buffer.alloc(64);
+  x.copy(blob, 0)
+  y.copy(blob, 32)
 
-  x.copy(blob, 0);
-  y.copy(blob, 32);
+  blob[0] &= 0x0F
+  blob[0] |= (a ? 1 << 7 : 0) | (b ? 1 << 6 : 0) | (c ? 1 << 5 : 0) | (d ? 1 << 4 : 0)
 
-  blob[0] &= 0x0F;
-  blob[0] |= (a ? 1 << 7 : 0) | (b ? 1 << 6 : 0) | (c ? 1 << 5 : 0) | (d ? 1 << 4 : 0);
-
-  var hasher = new SHA256Compress();
-  hasher.update(blob);
-  return hasher.hash();
+  var hasher = new SHA256Compress()
+  hasher.update(blob)
+  return hasher.hash()
 }
 
-function prfAddr(aSk, t) {
-  var y = Buffer.alloc(32);
-  y.fill(0);
-  y[0] = t;
+function prfAddr (aSk: Buffer, t: number) {
+  var y = Buffer.alloc(32)
+  y.fill(0)
+  y[0] = t
 
-  return prf(1, 1, 0, 0, aSk, y);
+  return prf(1, 1, 0, 0, aSk, y)
 }
 
-function prfAddrAPk(aSk) {
-  return prfAddr(aSk, 0);
+function prfAddrAPk (aSk: Buffer) {
+  return prfAddr(aSk, 0)
 }
 
-function prfAddrSkEnc(aSk) {
-  return prfAddr(aSk, 1);
+function prfAddrSkEnc (aSk: Buffer) {
+  return prfAddr(aSk, 1)
 }
 
-function prfNf(aSk, rho) {
-  return prf(1, 1, 1, 0, aSk, rho);
+function prfNf (aSk: Buffer, rho: Buffer) {
+  return prf(1, 1, 1, 0, aSk, rho)
 }
 
-function prfPk(aSk, i0, hSig) {
-  if (i0 !== 0 && i0 !== 1) {
-    throw new Error('PRF_pk invoked with index out of bounds');
+function prfPk (aSk: Buffer, i0: number, hSig: Buffer) {
+  if ((i0 !== 0) && (i0 !== 1)) {
+    throw new Error('PRF_pk invoked with index out of bounds')
   }
 
-  return prf(0, i0, 0, 0, aSk, hSig);
+  return prf(0, i0, 0, 0, aSk, hSig)
 }
 
-function prfRho(phi, i0, hSig) {
-  if (i0 !== 0 && i0 !== 1) {
-    throw new Error('PRF_rho invoked with index out of bounds');
+function prfRho (phi: Buffer, i0: number, hSig: Buffer) {
+  if ((i0 !== 0) && (i0 !== 1)) {
+    throw new Error('PRF_rho invoked with index out of bounds')
   }
 
-  return prf(0, i0, 1, 0, phi, hSig);
+  return prf(0, i0, 1, 0, phi, hSig)
 }
 
 module.exports = {
@@ -57,4 +57,4 @@ module.exports = {
   PRF_nf: prfNf,
   PRF_pk: prfPk,
   PRF_rho: prfRho
-};
+}
