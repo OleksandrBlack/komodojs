@@ -1,4 +1,4 @@
-# komodojs
+# komodojs 
 Dead simple and easy to use JavaScript based Komodo library. Inspired by [pybitcointools](https://github.com/vbuterin/pybitcointools)
 
 # Getting started (Dev)
