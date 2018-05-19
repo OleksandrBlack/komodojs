@@ -1,6 +1,6 @@
 {
   "name": "safecoinjs",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Dead easy to use Safecoin JavaScript based library",
   "main": "./lib/index.js",
   "repository": "https://github.com/OleksandrBlack/safecoinjs.git",
