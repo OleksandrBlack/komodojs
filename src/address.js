@@ -22,13 +22,10 @@ function mkPrivKey (phrase: string): string {
  * @param {String} wif (wif hashing bytes (default: 0x80))
  * @return {Sting} WIF format (uncompressed)
  */
-function privKeyToWIF(privKey, toCompressed, wif) {
-  toCompressed = toCompressed || false;
-  wif = wif || zconfig.mainnet.wif;
+function privKeyToWIF (privKey: string, toCompressed: boolean = false, wif: string = zconfig.mainnet.wif): string {
+  if (toCompressed) privKey = privKey + '01'
 
-  if (toCompressed) privKey = privKey + '01';
-
-  return bs58check.encode(Buffer.from(wif + privKey, 'hex'));
+  return bs58check.encode(Buffer.from(wif + privKey, 'hex'))
 }
 
 /*
@@ -37,12 +34,10 @@ function privKeyToWIF(privKey, toCompressed, wif) {
  * @param {boolean} toCompressed (Convert to public key compressed key or nah)
  * @return {Sting} Public Key (default: uncompressed)
  */
-function privKeyToPubKey(privKey, toCompressed) {
-  toCompressed = toCompressed || false;
-
-  const pkBuffer = Buffer.from(privKey, 'hex');
-  var publicKey = secp256k1.publicKeyCreate(pkBuffer, toCompressed);
-  return publicKey.toString('hex');
+function privKeyToPubKey (privKey: string, toCompressed: boolean = false): string {
+  const pkBuffer = Buffer.from(privKey, 'hex')
+  var publicKey = secp256k1.publicKeyCreate(pkBuffer, toCompressed)
+  return publicKey.toString('hex')
 }
 
 /*
