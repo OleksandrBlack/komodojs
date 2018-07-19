@@ -3,7 +3,7 @@
   "version": "1.0.1",
   "description": "Dead easy to use Safecoin JavaScript based library",
   "main": "./lib/index.js",
-  "repository": "https://github.com/OleksandrBlack/safecoinjs.git",
+  "repository": "https://github.com/Fair-Exchange/safecoinjs.git#1.0.1-1",
   "author": "TheTrunk",
   "license": "MIT",
   "dependencies": {
