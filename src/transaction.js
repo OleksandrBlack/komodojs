@@ -1,71 +1,157 @@
-var bs58check = require('bs58check');
-var secp256k1 = require('secp256k1');
-var int64buffer = require('int64-buffer');
-var varuint = require('varuint-bitcoin');
-var zconfig = require('./config');
-var zbufferutils = require('./bufferutils');
-var zcrypto = require('./crypto');
-var zconstants = require('./constants');
-var zaddress = require('./address');
-var zopcodes = require('./opcodes');
-var zbufferutils = require('./bufferutils');
+// @flow
+import type { TXOBJ, HISTORY, RECIPIENTS } from './types'
 
-/* More info: https://github.com/ZencashOfficial/zen/blob/master/src/script/standard.cpp#L377
+var bs58check = require('bs58check')
+var elliptic = require('elliptic')
+var secp256k1 = new (elliptic.ec)('secp256k1') /* eslint new-cap: ["error", { "newIsCap": false }] */
+var varuint = require('varuint-bitcoin')
+var zconfig = require('./config')
+var zbufferutils = require('./bufferutils')
+var zcrypto = require('./crypto')
+var zconstants = require('./constants')
+var zaddress = require('./address')
+var zopcodes = require('./opcodes')
+
+function mkNullDataReplayScript (
+  data: string,
+  blockHeight: number,
+  blockHash: string
+): string {
+  var dataHex = Buffer.from(data).toString('hex')
+
+  // Minimal encoding
+  var blockHeightBuffer = Buffer.alloc(4)
+  blockHeightBuffer.writeUInt32LE(blockHeight, 0)
+  if (blockHeightBuffer[3] === 0x00) {
+    blockHeightBuffer = blockHeightBuffer.slice(0, 3)
+  }
+  var blockHeightHex = blockHeightBuffer.toString('hex')
+
+  // Block hash is encoded in little indian
+  var blockHashHex = Buffer.from(blockHash, 'hex').reverse().toString('hex')
+
+  return (
+    zopcodes.OP_RETURN +
+    zbufferutils.getPushDataLength(dataHex) +
+    dataHex +
+    zbufferutils.getPushDataLength(blockHashHex) +
+    blockHashHex +
+    zbufferutils.getPushDataLength(blockHeightHex) +
+    blockHeightHex +
+    zopcodes.OP_CHECKBLOCKATHEIGHT
+  )
+}
+
+/*
  * Given an address, generates a pubkeyhash replay type script needed for the transaction
+ * More info: https://github.com/Fair-Exchange/safecoin/blob/fd99c46b314dc9396f441a0d00f1ca5f5e1bb812/src/script/standard.cpp#L524
  * @param {String} address
- * @param {Number} blockHeight NOPE not in komodo
+ * @param {Number} blockHeight
+ * @param {Number} blockHash
  * @param {String} pubKeyHash (optional)
  * return {String} pubKeyScript
  */
-function mkPubkeyHashReplayScript(address, pubKeyHash) {
-    // Get lengh of pubKeyHash (so we know where to substr later on)
-    pubKeyHash = pubKeyHash || zconfig.mainnet.pubKeyHash;
+function mkPubkeyHashReplayScript (
+  address: string,
+  blockHeight: number,
+  blockHash: string,
+  pubKeyHash: string = zconfig.mainnet.pubKeyHash
+): string {
+  var addrHex = bs58check.decode(address).toString('hex')
 
-    var addrHex = bs58check.decode(address).toString('hex');
+  // Cut out pubKeyHash
+  var subAddrHex = addrHex.substring(pubKeyHash.length, addrHex.length)
 
-    // Cut out pubKeyHash
-    var subAddrHex = addrHex.substring(2, addrHex.length);
+  // Minimal encoding
+  var blockHeightBuffer = Buffer.alloc(4)
+  blockHeightBuffer.writeUInt32LE(blockHeight, 0)
+  if (blockHeightBuffer[3] === 0x00) {
+    blockHeightBuffer = blockHeightBuffer.slice(0, 3)
+  }
+  var blockHeightHex = blockHeightBuffer.toString('hex')
 
-    // Minimal encoding
+  // Block hash is encoded in little indian
+  var blockHashHex = Buffer.from(blockHash, 'hex').reverse().toString('hex')
 
-    // block hash is encoded in little indian
-
-    // '14' is the length of the subAddrHex (in bytes)
-    return zopcodes.OP_DUP + zopcodes.OP_HASH160 + zbufferutils.getStringBufferLength(subAddrHex) + subAddrHex + zopcodes.OP_EQUALVERIFY + zopcodes.OP_CHECKSIG;
+  return (
+    zopcodes.OP_DUP +
+    zopcodes.OP_HASH160 +
+    zbufferutils.getPushDataLength(subAddrHex) +
+    subAddrHex +
+    zopcodes.OP_EQUALVERIFY +
+    zopcodes.OP_CHECKSIG +
+    zbufferutils.getPushDataLength(blockHashHex) +
+    blockHashHex +
+    zbufferutils.getPushDataLength(blockHeightHex) +
+    blockHeightHex +
+    zopcodes.OP_CHECKBLOCKATHEIGHT
+  )
 }
 
 /*
  * Given an address, generates a script hash replay type script needed for the transaction
  * @param {String} address
- * @param {Number} blockHeight NOPE not in komodo
+ * @param {Number} blockHeight
+ * @param {Number} blockHash
  * return {String} scriptHash script
  */
-function mkScriptHashReplayScript(address) {
-    var addrHex = bs58check.decode(address).toString('hex');
-    var subAddrHex = addrHex.substring(2, addrHex.length); // Cut out the '00' (we also only want 14 bytes instead of 16)
+function mkScriptHashReplayScript (
+  address: string,
+  blockHeight: number,
+  blockHash: string
+): string {
+  var addrHex = bs58check.decode(address).toString('hex')
+  var subAddrHex = addrHex.substring(4, addrHex.length) // Cut out the '00' (we also only want 14 bytes instead of 16)
 
+  var blockHeightBuffer = Buffer.alloc(4)
+  blockHeightBuffer.writeUInt32LE(blockHeight, 0)
+  if (blockHeightBuffer[3] === 0x00) {
+    blockHeightBuffer = blockHeightBuffer.slice(0, 3)
+  }
+  var blockHeightHex = blockHeightBuffer.toString('hex')
 
+  // Block hash is encoded in little indian
+  var blockHashHex = Buffer.from(blockHash, 'hex').reverse().toString('hex')
 
-    // '14' is the length of the subAddrHex (in bytes)
-    return zopcodes.OP_HASH160 + zbufferutils.getStringBufferLength(subAddrHex) + subAddrHex + zopcodes.OP_EQUAL;
-
+  return (
+    zopcodes.OP_HASH160 +
+    zbufferutils.getPushDataLength(subAddrHex) +
+    subAddrHex +
+    zopcodes.OP_EQUAL +
+    zbufferutils.getPushDataLength(blockHashHex) +
+    blockHashHex +
+    zbufferutils.getPushDataLength(blockHeightHex) +
+    blockHeightHex +
+    zopcodes.OP_CHECKBLOCKATHEIGHT
+  )
 }
 
 /*
  * Given an address, generates an output script
  * @param {String} address
- * @param {Number} blockHeight NOPE not in komodo
+ * @param {Number} blockHeight
+ * @param {Number} blockHash
  * return {String} output script
  */
-function addressToScript(address) {
-    // P2SH replay starts with a 's', or 't'
-    if (address[0] === 'b' || address[0] === 'c') {
-        return mkScriptHashReplayScript(address);
-    }
+function addressToScript (
+  address: string,
+  blockHeight: number,
+  blockHash: string,
+  data: string
+): string {
+  // NULL transaction
+  if (address === null || address === undefined) {
+    return mkNullDataReplayScript(data, blockHeight, blockHash)
+  }
+  const prefix = bs58check.decode(address).toString('hex').slice(0, 4);
+  // P2SH replay starts with a '56' or '05' prefix
+  if (prefix === '56' || prefix === '05') {
+    return mkScriptHashReplayScript(address, blockHeight, blockHash)
+  }
 
-    // P2PKH-replay is a replacement for P2PKH
-    // P2PKH-replay starts with a 0
-    return mkPubkeyHashReplayScript(address);
+  // P2PKH-replay is a replacement for P2PKH
+  // P2PKH starts with a '3D' or '00' prefix
+  return mkPubkeyHashReplayScript(address, blockHeight, blockHash)
 }
 
 /*
@@ -76,28 +162,35 @@ function addressToScript(address) {
  * @param {String} hash code (SIGHASH_ALL, SIGHASH_NONE...)
  * return {String} output script
  */
-function signatureForm(txObj, i, script, hashcode) {
-    // Copy object so we don't rewrite it
-    var newTx = JSON.parse(JSON.stringify(txObj));
+function signatureForm (
+  txObj: TXOBJ,
+  i: number,
+  script: string,
+  hashcode: number
+): TXOBJ {
+  // Copy object so we don't rewrite it
+  var newTx = JSON.parse(JSON.stringify(txObj))
 
-    for (var j = 0; j < newTx.ins.length; j++) {
-        newTx.ins[j].script = '';
+  // Only sign the specified index
+  for (let j = 0; j < newTx.ins.length; j++) {
+    newTx.ins[j].script = ''
+  }
+
+  newTx.ins[i].script = script
+
+  if (hashcode === zconstants.SIGHASH_NONE) {
+    newTx.outs = []
+  } else if (hashcode === zconstants.SIGHASH_SINGLE) {
+    newTx.outs = newTx.outs.slice(0, newTx.ins.length)
+    for (let j = 0; j < newTx.ins.length - 1; ++j) {
+      newTx.outs[j].satoshis = Math.pow(2, 64) - 1
+      newTx.outs[j].script = ''
     }
-    newTx.ins[i].script = script;
+  } else if (hashcode === zconstants.SIGHASH_ANYONECANPAY) {
+    newTx.ins = [newTx.ins[i]]
+  }
 
-    if (hashcode === zconstants.SIGHASH_NONE) {
-        newTx.outs = [];
-    } else if (hashcode === zconstants.SIGHASH_SINGLE) {
-        newTx.outs = newTx.outs.slice(0, newTx.ins.length);
-        for (var j = 0; j < newTx.ins.length - 1; ++j) {
-            newTx.outs[j].satoshis = Math.pow(2, 64) - 1;
-            newTx.outs[j].script = '';
-        }
-    } else if (hashcode === zconstants.SIGHASH_ANYONECANPAY) {
-        newTx.ins = [newTx.ins[i]];
-    }
-
-    return newTx;
+  return newTx
 }
 
 /*
@@ -105,69 +198,69 @@ function signatureForm(txObj, i, script, hashcode) {
  * @param {String} hex string
  * @return {Object} txOBJ
  */
-function deserializeTx(hexStr) {
-    const buf = Buffer.from(hexStr, 'hex');
-    var offset = 0;
+function deserializeTx (hexStr: string): TXOBJ {
+  const buf = Buffer.from(hexStr, 'hex')
+  var offset = 0
 
-    // Out txobj
-    var txObj = {
-        version: 0, locktime: 0, ins: [], outs: []
+  // Out txobj
+  var txObj = { version: 0, locktime: 0, ins: [], outs: [] }
 
-        // Version
-    }; txObj.version = buf.readUInt32LE(offset);
-    offset += 4;
+  // Version
+  txObj.version = buf.readUInt32LE(offset)
+  offset += 4
 
-    // Vins
-    var vinLen = varuint.decode(buf, offset);
-    offset += varuint.decode.bytes;
-    for (var i = 0; i < vinLen; i++) {
-        const hash = buf.slice(offset, offset + 32);
-        offset += 32;
+  // Vins
+  var vinLen = varuint.decode(buf, offset)
+  offset += varuint.decode.bytes
+  for (let i = 0; i < vinLen; i++) {
+    // Else its
+    const hash = buf.slice(offset, offset + 32)
+    offset += 32
 
-        const vout = buf.readUInt32LE(offset);
-        offset += 4;
+    const vout = buf.readUInt32LE(offset)
+    offset += 4
 
-        const scriptLen = varuint.decode(buf, offset);
-        offset += varuint.decode.bytes;
+    const scriptLen = varuint.decode(buf, offset)
+    offset += varuint.decode.bytes
 
-        const script = buf.slice(offset, offset + scriptLen);
-        offset += scriptLen;
+    const script = buf.slice(offset, offset + scriptLen)
+    offset += scriptLen
 
-        const sequence = buf.slice(offset, offset + 4).toString('hex');
-        offset += 4;
+    const sequence = buf.slice(offset, offset + 4).toString('hex')
+    offset += 4
 
-        txObj.ins.push({
-            output: { hash: hash.reverse().toString('hex'), vout: vout },
-            script: script.toString('hex'),
-            sequence: sequence,
-            prevScriptPubKey: ''
-        });
-    }
+    txObj.ins.push({
+      output: { hash: hash.reverse().toString('hex'), vout: vout },
+      script: script.toString('hex'),
+      sequence: sequence,
+      prevScriptPubKey: ''
+    })
+  }
 
-    // Vouts
-    var voutLen = varuint.decode(buf, offset);
-    offset += varuint.decode.bytes;
-    for (var i = 0; i < voutLen; i++) {
-        const satoshis = zbufferutils.readUInt64LE(buf, offset);
-        offset += 8;
+  // Vouts
+  var voutLen = varuint.decode(buf, offset)
+  offset += varuint.decode.bytes
+  for (let i = 0; i < voutLen; i++) {
+    const satoshis = zbufferutils.readUInt64LE(buf, offset)
+    offset += 8
 
-        const scriptLen = varuint.decode(buf, offset);
-        offset += varuint.decode.bytes;
+    const scriptLen = varuint.decode(buf, offset)
+    offset += varuint.decode.bytes
 
-        const script = buf.slice(offset, offset + scriptLen);
-        offset += scriptLen;
+    const script = buf.slice(offset, offset + scriptLen)
+    offset += scriptLen
 
-        txObj.outs.push({
-            satoshis: satoshis,
-            script: script.toString('hex')
-        });
-    }
+    txObj.outs.push({
+      satoshis: satoshis,
+      script: script.toString('hex')
+    })
+  }
 
-    // Locktime
-    txObj.locktime = buf.readInt32LE(offset);
-    offset += 4;
+  // Locktime
+  txObj.locktime = buf.readInt32LE(offset)
+  offset += 4
 
-    return txObj;
+  return txObj
 }
 
 /*
@@ -175,79 +268,125 @@ function deserializeTx(hexStr) {
  * @param {Object} txObj
  * return {String} hex string of txObj
  */
-function serializeTx(txObj) {
-    var serializedTx = '';
-    var _buf16 = Buffer.alloc(4);
+function serializeTx (txObj: TXOBJ): string {
+  var serializedTx = ''
+  var _buf16 = Buffer.alloc(4)
 
-    // Version
-    _buf16.writeUInt16LE(txObj.version, 0);
-    serializedTx += _buf16.toString('hex');
+  // Version
+  _buf16.writeUInt16LE(txObj.version, 0)
+  serializedTx += _buf16.toString('hex')
 
-    // History
-    serializedTx += zbufferutils.numToVarInt(txObj.ins.length);
-    txObj.ins.map(function (i) {
-        // Txids and vouts
-        _buf16.writeUInt16LE(i.output.vout, 0);
-        serializedTx += Buffer.from(i.output.hash, 'hex').reverse().toString('hex');
-        serializedTx += _buf16.toString('hex');
+  // History
+  serializedTx += zbufferutils.numToVarInt(txObj.ins.length)
+  txObj.ins.map((i) => {
+    // Txids and vouts
+    _buf16.writeUInt16LE(i.output.vout, 0)
+    serializedTx += Buffer.from(i.output.hash, 'hex').reverse().toString('hex')
+    serializedTx += _buf16.toString('hex')
 
-        // Script
-        serializedTx += zbufferutils.getStringBufferLength(i.script);
-        serializedTx += i.script;
+    // Script Signature
+    // Doesn't work for length > 253 ....
+    serializedTx += zbufferutils.getPushDataLength(i.script)
+    serializedTx += i.script
 
-        // Sequence
-        serializedTx += i.sequence;
-    });
+    // Sequence
+    serializedTx += i.sequence
+  })
 
-    // Outputs
-    serializedTx += zbufferutils.numToVarInt(txObj.outs.length);
-    txObj.outs.map(function (o) {
-        // Write 64bit buffers
-        // JS only supports 56 bit
-        // https://github.com/bitcoinjs/bitcoinjs-lib/blob/master/src/bufferutils.js#L25
-        var _buf32 = Buffer.alloc(8);
+  // Outputs
+  serializedTx += zbufferutils.numToVarInt(txObj.outs.length)
+  txObj.outs.map((o) => {
+    // Write 64bit buffers
+    // JS only supports 56 bit
+    // https://github.com/bitcoinjs/bitcoinjs-lib/blob/master/src/bufferutils.js#L25
+    var _buf32 = Buffer.alloc(8)
 
-        _buf32.writeInt32LE(o.satoshis & -1, 0);
-        _buf32.writeUInt32LE(Math.floor(o.satoshis / 0x100000000), 4);
+    // Satoshis
+    _buf32.writeInt32LE(o.satoshis & -1, 0)
+    _buf32.writeUInt32LE(Math.floor(o.satoshis / 0x100000000), 4)
 
-        serializedTx += _buf32.toString('hex');
-        serializedTx += zbufferutils.getStringBufferLength(o.script);
-        serializedTx += o.script;
-    });
+    // ScriptPubKey
+    serializedTx += _buf32.toString('hex')
+    serializedTx += zbufferutils.getPushDataLength(o.script)
+    serializedTx += o.script
+  })
 
-    // Locktime
-    _buf16.writeUInt16LE(txObj.locktime, 0);
-    serializedTx += _buf16.toString('hex');
+  // Locktime
+  _buf16.writeUInt16LE(txObj.locktime, 0)
+  serializedTx += _buf16.toString('hex')
 
-    return serializedTx;
+  return serializedTx
 }
 
 /*
  * Creates a raw transaction
  * @param {[HISTORY]} history type, array of transaction history
  * @param {[RECIPIENTS]} recipient type, array of address on where to send coins to
- * @param {Number} blockHeight (latest - 300) NOPE not in komodo
+ * @param {Number} blockHeight (latest - 300)
+ * @param {String} blockHash of blockHeight
  * @return {TXOBJ} Transction Object (see TXOBJ type for info about structure)
  */
-function createRawTx(history, recipients) {
-    var txObj = { locktime: 0, version: 1, ins: [], outs: [] };
+function createRawTx (
+  history: HISTORY[],
+  recipients: RECIPIENTS[],
+  blockHeight: number,
+  blockHash: string
+): TXOBJ {
+  var txObj = { locktime: 0, version: 1, ins: [], outs: [] }
 
-    txObj.ins = history.map(function (h) {
-        return {
-            output: { hash: h.txid, vout: h.vout },
-            script: '',
-            prevScriptPubKey: h.scriptPubKey,
-            sequence: 'ffffffff'
-        };
-    });
-    txObj.outs = recipients.map(function (o) {
-        return {
-            script: addressToScript(o.address),
-            satoshis: o.satoshis
-        };
-    });
+  txObj.ins = history.map(function (h) {
+    return {
+      output: { hash: h.txid, vout: h.vout },
+      script: '',
+      prevScriptPubKey: h.scriptPubKey,
+      sequence: 'ffffffff'
+    }
+  })
+  txObj.outs = recipients.map(function (o) {
+    return {
+      script: addressToScript(o.address, blockHeight, blockHash, o.data),
+      satoshis: o.satoshis
+    }
+  })
 
-    return txObj;
+  return txObj
+}
+
+/*
+ * Gets signature for the vin script
+ * @params {string} privKey private key
+ * @params {TXOBJ} signingTx a txobj whereby all the vin script's field are empty except for the one that needs to be signed
+ * @params {number} hashcode
+*/
+function getScriptSignature (
+  privKey: string,
+  signingTx: TXOBJ,
+  hashcode: number
+): string {
+  // Buffer
+  var _buf16 = Buffer.alloc(4)
+  _buf16.writeUInt16LE(hashcode, 0)
+
+  const signingTxHex: string = serializeTx(signingTx)
+  const signingTxWithHashcode = signingTxHex + _buf16.toString('hex')
+
+  // Sha256 it twice, according to spec
+  const msg = zcrypto.sha256x2(Buffer.from(signingTxWithHashcode, 'hex'))
+
+  // Signing it
+  const rawsig = secp256k1.sign(
+    Buffer.from(msg, 'hex'),
+    Buffer.from(privKey, 'hex'),
+    { canonical: true }
+  )
+
+  // Convert it to DER format
+  // Appending 01 to it cause
+  // ScriptSig = <varint of total sig length> <SIG from code, including appended 01 SIGNHASH> <length of pubkey (0x21 or 0x41)> <pubkey>
+  // https://bitcoin.stackexchange.com/a/36481
+  const signatureDER = Buffer.from(rawsig.toDER()).toString('hex') + '01'
+
+  return signatureDER
 }
 
 /*
@@ -259,53 +398,153 @@ function createRawTx(history, recipients) {
  * @param {hashcode} hashcode (default SIGHASH_ALL)
  * return {String} signed transaction
  */
-function signTx(_txObj, i, privKey, compressPubKey, hashcode) {
-    hashcode = hashcode || zconstants.SIGHASH_ALL;
-    compressPubKey = compressPubKey || false;
+function signTx (
+  _txObj: TXOBJ,
+  i: number,
+  privKey: string,
+  compressPubKey: boolean = false,
+  hashcode: number = zconstants.SIGHASH_ALL
+): TXOBJ {
+  // Make a copy
+  var txObj = JSON.parse(JSON.stringify(_txObj))
 
-    // Make a copy
-    var txObj = JSON.parse(JSON.stringify(_txObj));
+  // Prepare our signature
+  // Get script from the current tx input
+  const script = txObj.ins[i].prevScriptPubKey
 
-    // Buffer
-    var _buf16 = Buffer.alloc(4);
-    _buf16.writeUInt16LE(hashcode, 0);
+  // Populate current tx in with the prevScriptPubKey
+  const signingTx: TXOBJ = signatureForm(txObj, i, script, hashcode)
 
-    // Prepare signing
-    const script = txObj.ins[i].prevScriptPubKey;
+  // Get script signature
+  const scriptSig = getScriptSignature(privKey, signingTx, hashcode)
 
-    // Prepare our signature
-    const signingTx = signatureForm(txObj, i, script, hashcode);
-    const signingTxHex = serializeTx(signingTx);
-    const signingTxWithHashcode = signingTxHex + _buf16.toString('hex');
+  // Chuck it back into txObj and add pubkey
+  // Protocol:
+  // PUSHDATA
+  // signature data and SIGHASH_ALL
+  // PUSHDATA
+  // public key data
+  const pubKey = zaddress.privKeyToPubKey(privKey, compressPubKey)
 
-    // Sha256 it twice, according to spec
-    const msg = zcrypto.sha256x2(Buffer.from(signingTxWithHashcode, 'hex'));
+  txObj.ins[i].script =
+    zbufferutils.getPushDataLength(scriptSig) +
+    scriptSig +
+    zbufferutils.getPushDataLength(pubKey) +
+    pubKey
 
-    // Signing it
-    const rawsig = secp256k1.sign(Buffer.from(msg, 'hex'), Buffer.from(privKey, 'hex')).signature;
+  return txObj
+}
 
-    // Convert it to DER format
-    // Appending 01 to it cause
-    // ScriptSig = <varint of total sig length> <SIG from code, including appended 01 SIGNHASH> <length of pubkey (0x21 or 0x41)> <pubkey>
-    // https://bitcoin.stackexchange.com/a/36481
-    const signatureDER = secp256k1.signatureExport(rawsig).toString('hex') + '01';
+/*
+ * Gets signatures needed for multi-sign tx
+ * @param {String} _txObj transaction object you wanna sign
+ * @param {Int} index fof tx.in to sign
+ * @param {privKey} One of the M private keys you (NOT WIF format!!!)
+ * @param {string} redeemScript (redeemScript of the multi-sig)
+ * @param {string} hashcode (SIGHASH_ALL, SIGHASH_NONE, etc)
+ * return {String} signature
+ */
+function multiSign (
+  _txObj: TXOBJ,
+  i: number,
+  privKey: string,
+  redeemScript: string,
+  hashcode: number = zconstants.SIGHASH_ALL
+): string {
+  // Make a copy
+  var txObj = JSON.parse(JSON.stringify(_txObj))
 
-    // Chuck it back into txObj and add pubkey
-    // WHAT? If it fails, uncompress/compress it and it should work...
-    const pubKey = zaddress.privKeyToPubKey(privKey, compressPubKey);
+  // Populate current tx.ins[i] with the redeemScript
+  const signingTx: TXOBJ = signatureForm(txObj, i, redeemScript, hashcode)
 
-    txObj.ins[i].script = zbufferutils.getStringBufferLength(signatureDER) + signatureDER + zbufferutils.getStringBufferLength(pubKey) + pubKey;
+  return getScriptSignature(privKey, signingTx, hashcode)
+}
 
-    return txObj;
+/*
+ * Applies the signatures to the transaction object
+ * NOTE: You NEED to supply the signatures in order.
+ *       E.g. You made sigAddr1 with priv1, priv3, priv2
+ *            You can provide signatures of (priv1, priv2) (priv3, priv2) ...
+ *            But not (priv2, priv1)
+ * @param {String} _txObj transaction object you wanna sign
+ * @param {Int} index fof tx.in to sign
+ * @param {[string]} signatures obtained from multiSign
+ * @param {string} redeemScript (redeemScript of the multi-sig)
+ * @param {string} hashcode (SIGHASH_ALL, SIGHASH_NONE, etc)
+ * return {String} signature
+ */
+function applyMultiSignatures (
+  _txObj: TXOBJ,
+  i: number,
+  signatures: [string],
+  redeemScript: string,
+  hashcode: number = zconstants.SIGHASH_ALL
+): TXOBJ {
+  // Make a copy
+  var txObj = JSON.parse(JSON.stringify(_txObj))
+
+  // TODO: make it stateless
+  // Fix signature order
+  // var rsFixed = redeemScript.slice(2)
+  // var pubKeys = []
+
+  // // 30 was chosen arbitrarily as the minimum length
+  // // of a pubkey is 33
+  // while (rsFixed.length > 30) {
+  //   // Convert pushdatalength from hex to int
+  //   // Extract public key
+  //   var pushDataLength = parseInt(rsFixed.slice(0, 2), 16).toString(10)
+  //   var pubkey = Buffer.from(rsFixed.slice(2), 'hex').slice(0, pushDataLength).toString('hex')
+  //   pubKeys = pubKeys.concat(pubkey)
+
+  //   rsFixed = rsFixed.slice(2 + pubkey.length)
+  // }
+
+  // var unmatched = JSON.parse(JSON.stringify(signatures))
+
+  // const signaturesFixed = pubKeys.map(pubKey => {
+  //   const keyPair = secp256k1.keyFromPublic(pubKey)
+
+  //   var match    
+
+  //   unmatched.some((sig, i) => {
+  //     if (!sig) return false      
+  //   })
+  // })
+  
+  var redeemScriptPushDataLength = zbufferutils.getPushDataLength(redeemScript)
+
+  // Lmao no idea, just following the source code
+  if (redeemScriptPushDataLength.length > 2) {
+    if (redeemScriptPushDataLength.length === 6) {
+      redeemScriptPushDataLength = redeemScriptPushDataLength.slice(2, 4)
+    }
+  }
+
+  // http://www.soroushjp.com/2014/12/20/bitcoin-multisig-the-hard-way-understanding-raw-multisignature-bitcoin-transactions/
+  txObj.ins[i].script =
+    zopcodes.OP_0 +
+    signatures.map((x) => {
+      return zbufferutils.getPushDataLength(x) + x
+    }).join('') +
+    zopcodes.OP_PUSHDATA1 +
+    redeemScriptPushDataLength +
+    redeemScript
+
+  return txObj
 }
 
 module.exports = {
-    addressToScript: addressToScript,
-    createRawTx: createRawTx,
-    mkPubkeyHashReplayScript: mkPubkeyHashReplayScript,
-    mkScriptHashReplayScript: mkScriptHashReplayScript,
-    signatureForm: signatureForm,
-    serializeTx: serializeTx,
-    deserializeTx: deserializeTx,
-    signTx: signTx
-};
+  addressToScript: addressToScript,
+  createRawTx: createRawTx,
+  mkPubkeyHashReplayScript: mkPubkeyHashReplayScript,
+  mkScriptHashReplayScript: mkScriptHashReplayScript,
+  signatureForm: signatureForm,
+  serializeTx: serializeTx,
+  deserializeTx: deserializeTx,
+  signTx: signTx,
+  multiSign: multiSign,
+  applyMultiSignatures: applyMultiSignatures,
+  getScriptSignature: getScriptSignature,
+  mkNullDataReplayScript: mkNullDataReplayScript
+}

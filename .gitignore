@@ -59,6 +59,8 @@ typings/
 
 # Visual Studio Code Env details
 .vscode/
-.vs
+
+# Intellij
+.idea/
 
 debugging.js

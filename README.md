@@ -1,4 +1,6 @@
 
+Dead simple and easy to use JavaScript based library for safecoin. Inspired by [pybitcointools](https://github.com/vbuterin/pybitcointools)
+
 # Example usage (Transparent address)
 ```javascript
 var safecoinjs = require('safecoinjs')
@@ -9,15 +11,27 @@ var priv = safecoinjs.address.mkPrivKey('chris p. bacon, defender of the guardia
 var privWIF = safecoinjs.address.privKeyToWIF(priv)
 // 5J9mKPd531Tk4A73kKp4iowoi6EvhEp8QSMAVzrZhuzZkdpYbK8
 
-var pubKey = safecoinjs.address.privKeyToPubKey(priv)
-// 048a789e0910b6aa314f63d2cc666bd44fa4b71d7397cb5466902dc594c1a0a0d2e4d234528ff87b83f971ab2b12cd2939ff33c7846716827a5b0e8233049d8aad
+var pubKey = safecoinjs.address.privKeyToPubKey(priv, true) // generate compressed pubKey
+// 038a789e0910b6aa314f63d2cc666bd44fa4b71d7397cb5466902dc594c1a0a0d2
 
 var zAddr = safecoinjs.address.pubKeyToAddr(pubKey)
-// znkz4JE6Y4m8xWoo4ryTnpxwBT5F7vFDgNf
+// znnjppzJG7ajT7f6Vp1AD6SjgcXBVPA2E6c
 
-// To create and sign a raw transaction at BLOCKHEIGHT and BLOCKHASH
-const blockHeight = 142091
-const blockHash = '00000001cf4e27ce1dd8028408ed0a48edd445ba388170c9468ba0d42fff3052'
+// It is imperative that the block used for bip115BlockHeight and bip115BlockHash has a sufficient number of
+// confirmations (recommded values: 150 to 600 blocks older than current BLOCKHEIGHT). If the block used for 
+// the replay protection should get orphaned the transaction will be unspendable for at least 52596 blocks.
+// For details on the replay protection please see: https://github.com/bitcoin/bips/blob/master/bip-0115.mediawiki
+
+// To create and sign a raw transaction at BLOCKHEIGHT with BIP115BLOCKHEIGHT and BIP115BLOCKHASH
+const blockHeight = 450150 // Example of current BLOCKHEIGHT
+const bip115BlockHeight = blockHeight - 150 // Chaintip - 150 blocks, the block used for the replay protection needs a sufficient number of confirmations
+const bip115BlockHash = '0000000007844e62d471b966cc5926bd92e56a27d2c6a6ac8f90d34e11d3028d' // Blockhash of block 450000
+
+// If it is unfeasable to get the current BLOCKHEIGHT or transactions are to be signed completely offline
+// use hard coded values for BIP115BLOCKHEIGHT and BIP115BLOCKHASH that are at least 52596 blocks older than the
+// current BLOCKHEIGHT. For example:
+const bip115BlockHeight = 142091
+const bip115BlockHash = '00000001cf4e27ce1dd8028408ed0a48edd445ba388170c9468ba0d42fff3052'
 
 var txobj = safecoinjs.transaction.createRawTx(
   [{
@@ -25,8 +39,8 @@ var txobj = safecoinjs.transaction.createRawTx(
       scriptPubKey: '76a914da46f44467949ac9321b16402c32bbeede5e3e5f88ac20ebd78933082d25d56a47d471ee5d57793454cf3d2787f77c21f9964b02000000034f2902b4'
   }],
   [{address: 'znkz4JE6Y4m8xWoo4ryTnpxwBT5F7vFDgNf', satoshis: 100000}],
-  blockHeight,
-  blockHash
+  bip115BlockHeight,
+  bip115BlockHash
 )
 
 // To do a NULL_DATA transaction
@@ -37,58 +51,18 @@ var txobj = safecoinjs.transaction.createRawTx(
 //   }],
 //   [{address: 'znkz4JE6Y4m8xWoo4ryTnpxwBT5F7vFDgNf', satoshis: 99000},
 //    {address: undefined, data: 'hello world', satoshis: 900}],
-//   blockHeight,
-//   blockHash
+//   bip115BlockHeight,
+//   bip115BlockHash
 // )
 
 // safecoinjs.transaction.serializeTx(txobj)
 // 01000000019dd5ae887ce5e354c4cabe75230a439b03e494f36c5e7726cb7385f892a304270000000000ffffffff01a0860100000000003f76a914da46f44467949ac9321b16402c32bbeede5e3e5f88ac205230ff2fd4a08b46c9708138ba45d4ed480aed088402d81dce274ecf01000000030b2b02b400000000
 
-=======
-# safecoinjs
-Dead simple and easy to use JavaScript based SafeCoin library. Inspired by [pybitcointools](https://github.com/vbuterin/pybitcointools)
-
-# Getting started (Dev)
-```bash
-git clone https://github.com/Fair-Exchange/safecoinjs.git
-cd safecoinjs
-yarn install
-yarn build
-
-# Dev flow
-flow status
-yarn build
-yarn test
-```
-
-# Example usage
-```javascript
-var safecoin = require('safecoinjs')
-
-var priv = safecoinjs.utils.makePrivKey('chris p. bacon, defender of the guardians')
-// 2c3a48576fe6e8a466e78cd2957c9dc62128135540bbea0685d7c4a23ea35a6c
-
-var privWIF = safecoinjs.utils.privKeyToWIF(priv)
-// 5J9mKPd531Tk4A73kKp4iowoi6EvhEp8QSMAVzrZhuzZkdpYbK8
-
-var pubKey = safecoinjs.utils.privKeyToPubKey(priv)
-// 048a789e0910b6aa314f63d2cc666bd44fa4b71d7397cb5466902dc594c1a0a0d2e4d234528ff87b83f971ab2b12cd2939ff33c7846716827a5b0e8233049d8aad
-
-var zAddr = safecoinjs.utils.pubKeyToAddr(pubKey)
-// t1aYp69J595Rhaof2AEFuEvJjLWVboddB2x
-
-// To create and sign a raw transaction
-var txobj = safecoinjs.transaction.createRawTx([{txid: '196173ec34d22a52cc689a21d01dd33b633671cbe1141e7e66240c7f3b4ccf7b', vout: 0}], [{address: 't1aYp69J595Rhaof2AEFuEvJjLWVboddB2x', satoshis: 100000}])
-// safecoinjs.transaction.serializeTx(txobj)
-// 01000000017bcf4c3b7f0c24667e1e14e1cb7136633bd31dd0219a68cc522ad234ec7361190000000000ffffffff01a0860100000000003f76a914da46f44467949ac9321b16402c32bbeede5e3e5f88ac205230ff2fd4a08b46c9708138ba45d4ed480aed088402d81dce274ecf01000000030b2b02b400000000
-
-
-var tx0 = safecoinjs.transaction.signTx(txobj, 0, '2c3a48576fe6e8a466e78cd2957c9dc62128135540bbea0685d7c4a23ea35a6c')
+var tx0 = safecoinjs.transaction.signTx(txobj, 0, '2c3a48576fe6e8a466e78cd2957c9dc62128135540bbea0685d7c4a23ea35a6c', true) // The final argument sets the `compressPubKey` boolean. It is `false` by default.
 // safecoinjs.transaction.serializeTx(tx0)
 // 01000000017bcf4c3b7f0c24667e1e14e1cb7136633bd31dd0219a68cc522ad234ec736119000000008b483045022100b69baff0eb5570fd8ddda7b180463035d47eb3b1c07a808a68085fd58e9e22b102202eb3983a2137af4f8c3967b3c6c16c024ad952a712ab92b8911a8797f1864d3d0141048a789e0910b6aa314f63d2cc666bd44fa4b71d7397cb5466902dc594c1a0a0d2e4d234528ff87b83f971ab2b12cd2939ff33c7846716827a5b0e8233049d8aadffffffff01a0860100000000003f76a914da46f44467949ac9321b16402c32bbeede5e3e5f88ac205230ff2fd4a08b46c9708138ba45d4ed480aed088402d81dce274ecf01000000030b2b02b400000000
 
-
-// You can now do safe-cli sendrawtransaction `SERIALIZED_TRANSACTION`
+// You can now do safecoin-cli sendrawtransaction `SERIALIZED_TRANSACTION`
 ```
 
 # Example Usage (Multi-sig)
@@ -118,19 +92,33 @@ var redeemScript = safecoinjs.address.mkMultiSigRedeemScript(pubKeys, 2, 3)
 var multiSigAddress = safecoinjs.address.multiSigRSToAddress(redeemScript)
 // zsmSCni8GXoCdTGqUfn26QJVGh6rpaFs17T
 
-// To create and sign a raw transaction at BLOCKHEIGHT and BLOCKHASH
-const blockHeight = 142091
-const blockHash = '00000001cf4e27ce1dd8028408ed0a48edd445ba388170c9468ba0d42fff3052'
+// It is imperative that the block used for bip115BlockHeight and bip115BlockHash has a sufficient number of
+// confirmations (recommded values: 150 to 600 blocks older than current BLOCKHEIGHT). If the block used for
+// the replay protection should get orphaned the transaction will be unspendable for at least 52596 blocks.
+// For details on the replay protection please see: https://github.com/bitcoin/bips/blob/master/bip-0115.mediawiki
+
+// To create and sign a raw transaction at BLOCKHEIGHT with BIP115BLOCKHEIGHT and BIP115BLOCKHASH
+const blockHeight = 450150 // Example of current BLOCKHEIGHT
+const bip115BlockHeight = blockHeight - 150 // Chaintip - 150 blocks, the block used for the replay protection needs a sufficient number of confirmations
+const bip115BlockHash = '0000000007844e62d471b966cc5926bd92e56a27d2c6a6ac8f90d34e11d3028d' // Blockhash of block 450000
+
+// If it is unfeasable to get the current BLOCKHEIGHT or transactions are to be signed completely offline
+// use hard coded values for BIP115BLOCKHEIGHT and BIP115BLOCKHASH that are at least 52596 blocks older than the
+// current BLOCKHEIGHT. For example:
+const bip115BlockHeight = 142091
+const bip115BlockHash = '00000001cf4e27ce1dd8028408ed0a48edd445ba388170c9468ba0d42fff3052'
 
 var txobj = safecoinjs.transaction.createRawTx(
   [{
       txid: 'f5f324064de9caab9353674c59f1c3987ca997bf5882a41a722686883e089581', vout: 0,
-      scriptPubKey: '' // DOn't need script pub key since we'll be using redeemScript to sign
+      scriptPubKey: '' // Don't need script pub key since we'll be using redeemScript to sign
   }],
   [{address: 'zneng6nRqTrqTKfjYAqXT86HWtk96ftPjtX', satoshis: 10000}],
-  blockHeight,
-  blockHash
+  bip115BlockHeight,
+  bip115BlockHash
 )
+
+
 
 // Prepare our signatures for mutli-sig
 var sig1 = safecoinjs.transaction.multiSign(txobj, 0, privKeys[0], redeemScript)
@@ -181,10 +169,8 @@ var Zaddress = safecoinjs.zaddress.mkZAddress(a_pk, pk_enc)
 # src is where the source code resides.
 # lib is where the transpiled code resides in.
 # edit src if you wanna make a PR
-git clone https://github.com/SafeCoinOfficial/safecoinjs.git
+git clone https://github.com/OleksandrBlack/safecoinjs.git
 cd safecoinjs
 yarn install
 yarn run [dev | build]
-=======
-// You can now do safecoin-cli sendrawtransaction `SERIALIZED_TRANSACTION`
 ```
