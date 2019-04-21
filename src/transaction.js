@@ -79,12 +79,7 @@ function mkPubkeyHashReplayScript (
     zbufferutils.getPushDataLength(subAddrHex) +
     subAddrHex +
     zopcodes.OP_EQUALVERIFY +
-    zopcodes.OP_CHECKSIG +
-    zbufferutils.getPushDataLength(blockHashHex) +
-    blockHashHex +
-    zbufferutils.getPushDataLength(blockHeightHex) +
-    blockHeightHex +
-    zopcodes.OP_CHECKBLOCKATHEIGHT
+    zopcodes.OP_CHECKSIG
   )
 }
 
@@ -117,12 +112,7 @@ function mkScriptHashReplayScript (
     zopcodes.OP_HASH160 +
     zbufferutils.getPushDataLength(subAddrHex) +
     subAddrHex +
-    zopcodes.OP_EQUAL +
-    zbufferutils.getPushDataLength(blockHashHex) +
-    blockHashHex +
-    zbufferutils.getPushDataLength(blockHeightHex) +
-    blockHeightHex +
-    zopcodes.OP_CHECKBLOCKATHEIGHT
+    zopcodes.OP_EQUAL
   )
 }
 
